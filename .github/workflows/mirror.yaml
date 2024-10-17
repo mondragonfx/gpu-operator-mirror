@@ -44,7 +44,7 @@ jobs:
 
       - name: Download and Update GPU Operator Chart Index
         run: |
-          ./update_gpu_operator_index.sh ${LATEST_CHART_VERSION}
+          ./update-chart.sh ${LATEST_CHART_VERSION}
         env:
           LATEST_CHART_VERSION: ${{ env.LATEST_CHART_VERSION }}
         
