@@ -47,46 +47,46 @@ jobs:
           MINIO_BUCKET: helm-charts
           LATEST_CHART_VERSION: ${{ env.LATEST_CHART_VERSION }}
         run: |
-          # Check if there are any charts in the MinIO repository
-          CHARTS_EXIST=$(mc ls myminio/${MINIO_BUCKET}/nvidia/ | grep '.tgz' | wc -l)
+          # Check if any chart versions exist in the directory
+          CHARTS=$(mc ls myminio/helm-charts/nvidia/ | grep '.tgz' || true)
       
-          if [ "$CHARTS_EXIST" -eq 0 ]; then
-            echo "No existing charts found. Downloading the latest chart and generating index."
+          if [ -z "$CHARTS" ]; then
+            echo "No charts found in MinIO. Generating index with the latest version."
+      
             # Pull the latest GPU Operator chart
             helm pull nvidia/gpu-operator --version ${LATEST_CHART_VERSION}
-            # Create a new index.yaml
+      
+            # Create a new index.yaml with only the latest chart
             helm repo index . --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
-            # Upload the chart and the new index.yaml
-            mc cp gpu-operator-${LATEST_CHART_VERSION}.tgz myminio/${MINIO_BUCKET}/nvidia/
-            mc cp index.yaml myminio/${MINIO_BUCKET}/nvidia/
-            echo "Upload complete for version ${LATEST_CHART_VERSION}."
       
+            # Upload the new chart and index.yaml
+            mc cp gpu-operator-${LATEST_CHART_VERSION}.tgz myminio/helm-charts/nvidia/
+            mc cp index.yaml myminio/helm-charts/nvidia/
+      
+            echo "Uploaded the latest chart and generated a new index.yaml."
           else
-            echo "Existing charts found. Checking for the latest version."
-            # Pull the latest GPU Operator chart
-            helm pull nvidia/gpu-operator --version ${LATEST_CHART_VERSION}
+            echo "Existing charts found. Generating index.yaml with all versions."
       
-            # Check if the latest chart already exists
-            if mc stat myminio/${MINIO_BUCKET}/nvidia/gpu-operator-${LATEST_CHART_VERSION}.tgz; then
-              echo "Chart version ${LATEST_CHART_VERSION} already exists. Skipping upload."
-            else
-              echo "Uploading latest chart version ${LATEST_CHART_VERSION}."
-              mc cp gpu-operator-${LATEST_CHART_VERSION}.tgz myminio/${MINIO_BUCKET}/nvidia/
-            fi
+            # Download all existing charts
+            mc cp --recursive myminio/helm-charts/nvidia/ ./
       
-            # Check if index.yaml exists
-            if mc stat myminio/${MINIO_BUCKET}/nvidia/index.yaml; then
-              echo "Index file exists. Updating index."
-              mc cp myminio/${MINIO_BUCKET}/nvidia/index.yaml .  # Download existing index.yaml
-              # Generate a new index including all charts in the directory
+            # Loop through each chart file and create index entries for each
+            for chart in *.tgz; do
               helm repo index . --merge index.yaml --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
-            else
-              echo "No index file found. Generating a new index with all existing charts."
-              # Generate index.yaml that includes all chart files
-              helm repo index . --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
+            done
+      
+            # Pull the latest GPU Operator chart if not already present
+            if ! ls | grep -q "gpu-operator-${LATEST_CHART_VERSION}.tgz"; then
+              echo "Latest chart version not found locally. Downloading..."
+              helm pull nvidia/gpu-operator --version ${LATEST_CHART_VERSION}
             fi
       
-            # Upload the updated index.yaml to MinIO
-            mc cp index.yaml myminio/${MINIO_BUCKET}/nvidia/
-            echo "Upload complete for index.yaml."
+            # Regenerate the final index.yaml to include all charts
+            helm repo index . --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
+      
+            # Upload the updated chart files and index.yaml
+            mc cp *.tgz myminio/helm-charts/nvidia/
+            mc cp index.yaml myminio/helm-charts/nvidia/
+      
+            echo "Updated MinIO with all chart versions and regenerated the index.yaml."
           fi
