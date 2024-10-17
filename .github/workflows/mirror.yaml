@@ -31,7 +31,7 @@ jobs:
   
       - name: Configure MinIO Client
         env:
-          MINIO_ENDPOINT: https://${{ secrets.MINIO_ENDPOINT }}
+          MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
           MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_BUCKET: helm-charts
@@ -59,9 +59,9 @@ jobs:
             # Update index.yaml and upload both the chart and index
             if mc stat myminio/helm-charts/nvidia/index.yaml; then
               mc cp myminio/helm-charts/nvidia/index.yaml .
-              helm repo index . --merge index.yaml --url ${MINIO_ENDPOINT}/helm-charts/nvidia
+              helm repo index . --merge index.yaml --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
             else
-              helm repo index . --url ${MINIO_ENDPOINT}/helm-charts/nvidia
+              helm repo index . --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
             fi
 
             # Upload the chart and updated index.yaml
