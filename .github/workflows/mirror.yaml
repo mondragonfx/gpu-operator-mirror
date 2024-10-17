@@ -57,21 +57,25 @@ jobs:
           # List existing chart versions in MinIO
           EXISTING_VERSIONS=$(mc ls myminio/${MINIO_BUCKET}/nvidia/ | awk '{print $NF}' | grep "${CHART_NAME}-" | sed "s|${CHART_NAME}-||;s|.tgz||")
       
-          # Check if the latest version exists in the repo
-          if echo "${EXISTING_VERSIONS}" | grep -q "${LATEST_CHART_VERSION}"; then
-            echo "Latest chart version ${LATEST_CHART_VERSION} already exists. Skipping download."
-          else
-            echo "Latest chart version ${LATEST_CHART_VERSION} not found. Proceeding to pull the latest version."
+          # Pull the latest version if not present
+          if ! echo "${EXISTING_VERSIONS}" | grep -q "${LATEST_CHART_VERSION}"; then
+            echo "Pulling latest version ${LATEST_CHART_VERSION}..."
             helm pull nvidia/gpu-operator --version ${LATEST_CHART_VERSION} --destination ${CHART_DIR}
           fi
       
-          # Loop through existing versions and pull the charts
+          # Loop through existing versions and pull the charts if they don't exist locally
           for VERSION in ${EXISTING_VERSIONS}; do
-            echo "Pulling existing chart version ${VERSION}..."
-            helm pull nvidia/gpu-operator --version ${VERSION} --destination ${CHART_DIR}
+            if [ ! -f "${CHART_DIR}/${CHART_NAME}-${VERSION}.tgz" ]; then
+              echo "Pulling version ${VERSION}..."
+              helm pull nvidia/gpu-operator --version ${VERSION} --destination ${CHART_DIR}
+            fi
           done
       
-          # Generate index.yaml from the directory containing all the charts
+          # Verify that all desired charts are present
+          echo "Verifying contents of ${CHART_DIR}:"
+          ls -l ${CHART_DIR}
+      
+          # Generate a comprehensive index.yaml from all charts in the directory
           helm repo index ${CHART_DIR} --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
       
           # Upload all charts and the updated index.yaml
@@ -81,3 +85,4 @@ jobs:
           mc cp ${CHART_DIR}/index.yaml myminio/${MINIO_BUCKET}/nvidia/
       
           echo "Upload complete for all versions."
+        
