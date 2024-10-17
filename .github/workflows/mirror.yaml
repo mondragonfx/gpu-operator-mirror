@@ -69,8 +69,6 @@ jobs:
             # Merge with existing index.yaml
             mc cp myminio/helm-charts/nvidia/index.yaml .
             helm repo index . --merge index.yaml --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
-            mc cp index.yaml myminio/helm-charts/nvidia/
-            echo "Updated index.yaml with new version ${LATEST_CHART_VERSION}."
           else
             echo "No index.yaml found in MinIO. Checking for existing chart versions..."
 
@@ -78,10 +76,12 @@ jobs:
             if mc ls myminio/helm-charts/nvidia/ | grep -q 'gpu-operator-'; then
               echo "Existing charts found. Generating index.yaml with all versions..."
               helm repo index myminio/helm-charts/nvidia/ --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
-              echo "Generated new index.yaml with all existing chart versions."
             else
               echo "No existing charts found. Generating index.yaml with only the latest version..."
               helm repo index myminio/helm-charts/nvidia/ --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia --version ${LATEST_CHART_VERSION}
-              echo "Generated index.yaml with only the latest version ${LATEST_CHART_VERSION}."
             fi
           fi
+
+          # Upload the newly generated index.yaml
+          mc cp index.yaml myminio/helm-charts/nvidia/
+          echo "Uploaded index.yaml."
