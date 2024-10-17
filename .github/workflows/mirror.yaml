@@ -47,25 +47,37 @@ jobs:
           MINIO_BUCKET: helm-charts
           LATEST_CHART_VERSION: ${{ env.LATEST_CHART_VERSION }}
         run: |
-          # Check if the chart already exists
-          if mc stat myminio/helm-charts/nvidia/gpu-operator-${LATEST_CHART_VERSION}.tgz; then
-            echo "Chart version ${LATEST_CHART_VERSION} already exists. Skipping upload."
+          # Define variables
+          CHART_NAME="gpu-operator"
+          CHART_DIR="gpu-operator-charts"
+      
+          # Create directory for chart downloads
+          mkdir -p ${CHART_DIR}
+      
+          # List existing chart versions in MinIO
+          EXISTING_VERSIONS=$(mc ls myminio/${MINIO_BUCKET}/nvidia/ | awk '{print $NF}' | grep "${CHART_NAME}-" | sed "s|${CHART_NAME}-||;s|.tgz||")
+      
+          # Check if the latest version exists in the repo
+          if echo "${EXISTING_VERSIONS}" | grep -q "${LATEST_CHART_VERSION}"; then
+            echo "Latest chart version ${LATEST_CHART_VERSION} already exists. Skipping download."
           else
-            echo "Chart version ${LATEST_CHART_VERSION} not found. Proceeding to package and upload."
-
-            # Pull the latest GPU Operator chart
-            helm pull nvidia/gpu-operator --version ${LATEST_CHART_VERSION}
-
-            # Update index.yaml and upload both the chart and index
-            if mc stat myminio/helm-charts/nvidia/index.yaml; then
-              mc cp myminio/helm-charts/nvidia/index.yaml .
-              helm repo index . --merge index.yaml --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
-            else
-              helm repo index . --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
-            fi
-
-            # Upload the chart and updated index.yaml
-            mc cp gpu-operator-${LATEST_CHART_VERSION}.tgz myminio/helm-charts/nvidia/
-            mc cp index.yaml myminio/helm-charts/nvidia/
-            echo "Upload complete for version ${LATEST_CHART_VERSION}."
+            echo "Latest chart version ${LATEST_CHART_VERSION} not found. Proceeding to pull the latest version."
+            helm pull nvidia/gpu-operator --version ${LATEST_CHART_VERSION} --destination ${CHART_DIR}
           fi
+      
+          # Loop through existing versions and pull the charts
+          for VERSION in ${EXISTING_VERSIONS}; do
+            echo "Pulling existing chart version ${VERSION}..."
+            helm pull nvidia/gpu-operator --version ${VERSION} --destination ${CHART_DIR}
+          done
+      
+          # Generate index.yaml from the directory containing all the charts
+          helm repo index ${CHART_DIR} --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
+      
+          # Upload all charts and the updated index.yaml
+          for FILE in ${CHART_DIR}/*.tgz; do
+            mc cp "${FILE}" myminio/${MINIO_BUCKET}/nvidia/
+          done
+          mc cp ${CHART_DIR}/index.yaml myminio/${MINIO_BUCKET}/nvidia/
+      
+          echo "Upload complete for all versions."
