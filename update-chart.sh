@@ -35,7 +35,7 @@ done
 
 
 # Generate index.yaml from all charts in the directory
-helm repo index "${CHART_DIR}" --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
+helm repo index "${CHART_DIR}" --url ${MINIO_ENDPOINT}/helm-charts/nvidia
 
 
 # Upload all charts and the updated index.yaml
