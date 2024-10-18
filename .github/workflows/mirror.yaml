@@ -1,0 +1,50 @@
+name: Update GPU Operator Charts
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  update_gpu_operator_chart:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash  
+
+      - name: Add NVIDIA Helm repo 
+        run: |
+          helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+          helm repo update
+
+      - name: Retrieve Latest NVIDIA GPU Operator Chart Version
+        id: get-latest-chart-version
+        run: |
+          LATEST_CHART_VERSION=$(helm search repo nvidia/gpu-operator --devel --versions --output json | jq -r '.[0].version')
+          echo "Latest chart version is: $LATEST_CHART_VERSION"
+          echo "LATEST_CHART_VERSION=$LATEST_CHART_VERSION" >> $GITHUB_ENV
+  
+      - name: Configure MinIO Client
+        env:
+          MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+          MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+          MINIO_BUCKET: helm-charts
+        run: |
+          # Install MinIO Client (mc)
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          sudo mv mc /usr/local/bin/
+          mc alias set myminio $MINIO_ENDPOINT $MINIO_ACCESS_KEY $MINIO_SECRET_KEY --api S3v4
+
+      - name: Download and Update GPU Operator Chart Index
+        run: |
+          ./update-chart.sh ${LATEST_CHART_VERSION}
+        env:
+          LATEST_CHART_VERSION: ${{ env.LATEST_CHART_VERSION }}
+        
