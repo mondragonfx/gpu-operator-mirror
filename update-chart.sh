@@ -8,19 +8,31 @@ LATEST_CHART_VERSION="${1}"
 # Create directory for chart downloads
 mkdir -p "${CHART_DIR}"
 
-
 # List existing chart versions in MinIO
 EXISTING_VERSIONS=$(mc ls myminio/${MINIO_BUCKET}/nvidia/ | awk '{print $NF}' | grep "${CHART_NAME}-" | sed "s|${CHART_NAME}-||;s|.tgz||")
 
-#Print existing versions
+# Print existing versions
 echo "Existing versions in MinIO: ${EXISTING_VERSIONS}"
 
-# Pull the latest version if not present
-if ! echo "${EXISTING_VERSIONS}" | grep -q "${LATEST_CHART_VERSION}"; then
-  echo "Pulling latest version ${LATEST_CHART_VERSION}"
-  helm pull nvidia/gpu-operator --version "${LATEST_CHART_VERSION}" --destination "${CHART_DIR}"
+# Check if the latest chart version exists in MinIO
+if echo "${EXISTING_VERSIONS}" | grep -q "${LATEST_CHART_VERSION}"; then
+  echo "Latest version ${LATEST_CHART_VERSION} already exists in MinIO. Checking index.yaml..."
 else
-  echo "Latest version ${LATEST_CHART_VERSION} already exists. Skipping."
+  echo "Latest version ${LATEST_CHART_VERSION} does not exist in MinIO. Pulling latest version."
+  helm pull nvidia/gpu-operator --version "${LATEST_CHART_VERSION}" --destination "${CHART_DIR}"
+  # Upload the latest version after pulling
+  mc cp "${CHART_DIR}/${CHART_NAME}-${LATEST_CHART_VERSION}.tgz" myminio/${MINIO_BUCKET}/nvidia/
+fi
+
+# Check if index.yaml contains the latest version
+if [ -f "${CHART_DIR}/index.yaml" ]; then
+  if grep -q "${LATEST_CHART_VERSION}" "${CHART_DIR}/index.yaml"; then
+    echo "index.yaml already contains the latest version ${LATEST_CHART_VERSION}. Skipping index update."
+  else
+    echo "index.yaml does not contain the latest version ${LATEST_CHART_VERSION}. Updating index.yaml..."
+  fi
+else
+  echo "index.yaml not found. Generating a new index.yaml..."
 fi
 
 # Pull each existing version and place them in the directory
@@ -33,10 +45,8 @@ for VERSION in ${EXISTING_VERSIONS}; do
   fi
 done
 
-
 # Generate index.yaml from all charts in the directory
-helm repo index "${CHART_DIR}" --url ${MINIO_ENDPOINT}/helm-charts/nvidia
-
+helm repo index "${CHART_DIR}" --url https://minio.ewr.vultrlabs.dev/helm-charts/nvidia
 
 # Upload all charts and the updated index.yaml
 for FILE in "${CHART_DIR}"/*.tgz; do
