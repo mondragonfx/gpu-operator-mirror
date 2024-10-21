@@ -31,7 +31,6 @@ jobs:
   
       - name: Configure MinIO Client
         env:
-          MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
           MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
           MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
           MINIO_BUCKET: helm-charts
@@ -40,7 +39,7 @@ jobs:
           curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
           chmod +x mc
           sudo mv mc /usr/local/bin/
-          mc alias set myminio $MINIO_ENDPOINT $MINIO_ACCESS_KEY $MINIO_SECRET_KEY --api S3v4
+          mc alias set myminio https://minio.ewr.vultrlabs.dev $MINIO_ACCESS_KEY $MINIO_SECRET_KEY --api S3v4
 
       - name: Download and Update GPU Operator Chart Index
         run: |
