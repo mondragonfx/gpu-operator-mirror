@@ -24,20 +24,6 @@ else
   mc cp "${CHART_DIR}/${CHART_NAME}-${LATEST_CHART_VERSION}.tgz" myminio/${MINIO_BUCKET}/nvidia/
 fi
 
-# Download index.yaml if it exists in MinIO
-mc cp myminio/${MINIO_BUCKET}/nvidia/index.yaml "${CHART_DIR}/index.yaml" || echo "index.yaml not found in MinIO."
-
-# Check if index.yaml contains the latest version
-if [ -f "${CHART_DIR}/index.yaml" ]; then
-  if grep -q "${LATEST_CHART_VERSION}" "${CHART_DIR}/index.yaml"; then
-    echo "index.yaml already contains the latest version ${LATEST_CHART_VERSION}. Skipping index update."
-  else
-    echo "index.yaml does not contain the latest version ${LATEST_CHART_VERSION}."
-  fi
-else
-  echo "index.yaml not found."
-fi
-
 # Pull each existing version and place them in the directory
 for VERSION in ${EXISTING_VERSIONS}; do
   if [ ! -f "${CHART_DIR}/${CHART_NAME}-${VERSION}.tgz" ]; then
